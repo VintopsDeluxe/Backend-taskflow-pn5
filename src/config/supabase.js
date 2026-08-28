@@ -11,8 +11,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables in .env!');
 }
 
-// Client for standard user-authenticated requests (respects RLS)
+// 1. Client for standard user-authenticated requests (respects RLS)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Admin client bypassing RLS (for system tasks/maintenance)
+// 2. Admin client bypassing RLS (for system tasks/maintenance)
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
+
+// 3. Dynamic client factory that forwards the logged-in user's Bearer token to enforce RLS
+export const getSupabaseClient = (req) => {
+  const authHeader = req?.headers?.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  });
+};

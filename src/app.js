@@ -12,5 +12,6 @@ app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/forgot-password', authLimiter);
 app.use('/api/v1/auth/verify-otp', authLimiter);
 
+
 // Apply general limit across all API endpoints
 app.use('/api', globalLimiter);

@@ -1,5 +1,9 @@
 import { supabase } from '../config/supabase.js';
 
+// ==========================================
+// PROFILE CONTROLLERS
+// ==========================================
+
 export const getCurrentUserProfile = async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -43,6 +47,93 @@ export const updateUserProfile = async (req, res, next) => {
   }
 };
 
+export const uploadAvatar = async (req, res, next) => {
+  try {
+    const { avatar_url } = req.body;
+
+    if (!avatar_url) {
+      return res.status(400).json({
+        success: false,
+        message: 'Avatar URL is required',
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        avatar_url,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      message: 'Avatar updated successfully',
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long.',
+      });
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      message: 'Password updated successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deactivateAccount = async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deactivated successfully.',
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// NOTIFICATION CONTROLLERS
+// ==========================================
+
 export const getUserNotifications = async (req, res, next) => {
   try {
     const { data, error } = await supabase
@@ -79,6 +170,48 @@ export const markNotificationAsRead = async (req, res, next) => {
   }
 };
 
+export const markAllNotificationsAsRead = async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', req.user.id)
+      .eq('is_read', false)
+      .select();
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read',
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteNotification = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ==========================================
 // NOTIFICATION PREFERENCE CONTROLLERS
 // ==========================================
@@ -93,7 +226,6 @@ export const getUserPreferences = async (req, res, next) => {
 
     if (error) throw error;
 
-    // Return default preference fallbacks if user hasn't modified settings yet
     if (!data) {
       data = {
         user_id: req.user.id,

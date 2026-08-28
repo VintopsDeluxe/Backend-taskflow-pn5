@@ -3,17 +3,22 @@ import { supabase } from '../config/supabase.js';
 // 1. Register User via Supabase Auth
 export const registerUser = async (req, res, next) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, full_name } = req.body;
+    const userFullName = full_name || name;
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name } }, // Stores additional user metadata
+      options: { 
+        data: { full_name: userFullName } 
+      },
     });
 
-    if (error) return res.status(400).json({ success: false, message: error.message });
+    if (error) {
+      return res.status(450 || 400).json({ success: false, message: error.message });
+    }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Registration successful. Check your email for verification.',
       user: data.user,
@@ -33,12 +38,14 @@ export const loginUser = async (req, res, next) => {
       password,
     });
 
-    if (error) return res.status(400).json({ success: false, message: error.message });
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Login successful',
-      token: data.session.access_token, // JWT passed to frontend
+      token: data.session.access_token,
       user: data.user,
     });
   } catch (err) {
@@ -46,16 +53,18 @@ export const loginUser = async (req, res, next) => {
   }
 };
 
-// 3. Request 6-Digit Password Reset OTP
+// 3. Step 1: Request 6-Digit Password Reset OTP
 export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email);
 
-    if (error) return res.status(400).json({ success: false, message: error.message });
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'A 6-digit OTP code has been sent to your email address.',
     });
@@ -64,30 +73,56 @@ export const forgotPassword = async (req, res, next) => {
   }
 };
 
-// 4. Verify 6-Digit OTP and Update Password
-export const resetPassword = async (req, res, next) => {
+// 4. Step 2: Verify 6-Digit OTP Standalone
+export const verifyOtp = async (req, res, next) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email, otp } = req.body;
 
-    // Verify OTP code with Supabase
-    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+    // Verify OTP code with Supabase Auth recovery type
+    const { data, error } = await supabase.auth.verifyOtp({
       email,
       token: otp,
       type: 'recovery',
     });
 
-    if (verifyError) {
+    if (error || !data) {
       return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
     }
 
-    // Update password for verified session
+    return res.status(200).json({ 
+      success: true, 
+      message: 'OTP verified successfully.',
+      // Pass back the temporary session token so the reset-password step can use it securely
+      token: data.session.access_token 
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 5. Step 3: Reset Password using the token/session from verification
+export const resetPassword = async (req, res, next) => {
+  try {
+    // Expects the Bearer token from the verifyOtp step, or email/newPassword depending on design
+    const { newPassword } = req.body;
+    
+    // If using the session token passed in headers from verify-otp:
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. Please verify OTP first.' });
+    }
+    const token = authHeader.split(' ')[1];
+
+    // Set session or update user directly using the recovery token
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
 
-    if (updateError) return res.status(400).json({ success: false, message: updateError.message });
+    if (updateError) {
+      return res.status(400).json({ success: false, message: updateError.message });
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Password updated successfully. You can now log in.',
     });

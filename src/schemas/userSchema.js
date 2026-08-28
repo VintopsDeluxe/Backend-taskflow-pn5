@@ -38,7 +38,20 @@ export const resetPasswordSchema = z.object({
 export const updateProfileSchema = z.object({
   body: z.object({
     name: z.string().min(2).trim().optional(),
+    full_name: z.string().min(2).trim().optional(),
+    phone_number: z.string().optional(),
     avatarUrl: z.string().url('Invalid avatar URL').optional(),
+    avatar_url: z.string().url('Invalid avatar URL').optional(),
+    job_title: z.string().optional(),
+    department: z.string().optional(),
+    time_zone: z.string().optional(),
+  }),
+});
+
+export const changePasswordSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, 'Current password is required').optional(),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
   }),
 });
 
@@ -61,66 +74,106 @@ export const createWorkspaceSchema = z.object({
   }),
 });
 
+export const updateWorkspaceSchema = z.object({
+  body: z.object({
+    name: z.string().min(2, 'Workspace name must be at least 2 characters').trim().optional(),
+    description: z.string().optional(),
+  }),
+  params: z.object({
+    id: z.string().uuid('Invalid workspace ID format'),
+  }),
+});
+
 export const addWorkspaceMemberSchema = z.object({
   body: z.object({
     email: z.string().email('Invalid email address').toLowerCase().trim(),
     role: z.enum(['owner', 'admin', 'member']).default('member'),
   }),
-});
-
-// ==========================================
-// 3. PROJECT & TASK SCHEMAS (Kanban Support)
-// ==========================================
-export const createProjectSchema = z.object({
-  body: z.object({
-    name: z.string().min(2, 'Project name required').trim(),
-    description: z.string().optional(),
-    workspaceId: z.string().uuid('Invalid workspace ID format'),
+  params: z.object({
+    id: z.string().uuid('Invalid workspace ID format'),
   }),
 });
 
+export const updateWorkspaceMemberRoleSchema = z.object({
+  body: z.object({
+    role: z.enum(['owner', 'admin', 'member']),
+  }),
+  params: z.object({
+    id: z.string().uuid('Invalid workspace ID format'),
+    userId: z.string().uuid('Invalid user ID format'),
+  }),
+});
+
+export const workspaceIdParamSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid workspace ID format'),
+  }),
+});
+
+export const workspaceMemberParamSchema = z.object({
+  params: z.object({
+    id: z.string().uuid('Invalid workspace ID format'),
+    userId: z.string().uuid('Invalid user ID format'),
+  }),
+});
+// ==========================================
+// 3. TASK SCHEMAS
+// ==========================================
 export const createTaskSchema = z.object({
   body: z.object({
-    title: z.string().min(1, 'Task title required').trim(),
+    title: z.string().min(1, 'Title is required').trim(),
     description: z.string().optional(),
-    status: z.enum(['todo', 'in_progress', 'completed']).default('todo'),
-    priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
-    dueDate: z.string().datetime({ message: 'Invalid ISO date string' }).optional(),
-    projectId: z.string().uuid('Invalid project ID'),
-    workspaceId: z.string().uuid('Invalid workspace ID'),
-    assignedTo: z.string().uuid('Invalid user ID').optional(),
+    status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed']).optional(),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+    due_date: z.string().datetime().optional().or(z.string().date().optional()),
+    project_id: z.string().uuid('Invalid project ID format'),
+    workspace_id: z.string().uuid('Invalid workspace ID format'),
+    assigned_to: z.string().uuid('Invalid user ID format').optional().nullable(),
+  }),
+});
+
+export const updateTaskSchema = z.object({
+  body: z.object({
+    title: z.string().min(1).trim().optional(),
+    description: z.string().optional(),
+    status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed']).optional(),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+    due_date: z.string().datetime().optional().or(z.string().date().optional()),
+    assigned_to: z.string().uuid().optional().nullable(),
+  }),
+  params: z.object({
+    taskId: z.string().uuid('Invalid task ID format'),
   }),
 });
 
 export const updateTaskStatusSchema = z.object({
   body: z.object({
-    status: z.enum(['todo', 'in_progress', 'completed']),
+    status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed']),
   }),
   params: z.object({
-    id: z.string().uuid('Invalid task ID'),
+    taskId: z.string().uuid('Invalid task ID format'),
   }),
 });
 
-// ==========================================
-// 4. COMMENT SCHEMAS
-// ==========================================
-export const createCommentSchema = z.object({
+export const bulkUpdateTasksSchema = z.object({
   body: z.object({
-    content: z.string().min(1, 'Comment text cannot be empty').trim(),
-    taskId: z.string().uuid('Invalid task ID'),
+    taskIds: z.array(z.string().uuid('Invalid task ID format')).min(1, 'taskIds must be a non-empty array'),
+    updates: z.object({
+      status: z.enum(['todo', 'in_progress', 'review', 'blocked', 'completed']).optional(),
+      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+      assigned_to: z.string().uuid().optional().nullable(),
+    }),
   }),
 });
 
-// ==========================================
-// 5. QUERY PAGINATION & FILTER SCHEMAS
-// ==========================================
-export const paginationQuerySchema = z.object({
-  query: z.object({
-    page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().positive().max(100).default(20),
-    status: z.enum(['todo', 'in_progress', 'completed']).optional(),
-    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-    startDate: z.string().datetime({ message: 'startDate must be a valid ISO string' }).optional(),
-    endDate: z.string().datetime({ message: 'endDate must be a valid ISO string' }).optional(),
+export const taskIdParamSchema = z.object({
+  params: z.object({
+    taskId: z.string().uuid('Invalid task ID format'),
+  }),
+});
+
+export const projectTasksParamSchema = z.object({
+  params: z.object({
+    projectId: z.string().uuid('Invalid project ID format'),
   }),
 });

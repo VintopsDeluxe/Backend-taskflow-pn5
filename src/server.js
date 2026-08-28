@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js'; // 1. Added authRoutes import
 import userRoutes from './routes/userRoutes.js';
 import workspaceRoutes from './routes/workspaceRoutes.js';
+import workspaceMemberRoutes from './routes/workspaceMemberRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import commentRoutes from './routes/commentRoutes.js';
@@ -41,12 +42,14 @@ app.use('/api/v1/auth', authRoutes); // 2. Mounted under /api/v1/auth
 // Other Application Routes
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/workspaces', workspaceRoutes);
+app.use('/api/v1/workspaces', workspaceMemberRoutes);;
 app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/comments', commentRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/files', fileRoutes);
 app.use('/api/v1/activity', activityRoutes);
+app.use('/api/v1/activity-logs', activityRoutes);
 
 // ==========================================
 // 6. GLOBAL ERROR HANDLING & 404
@@ -67,6 +70,7 @@ app.use((err, req, res, next) => {
     message: err.message || 'Internal Server Error'
   });
 });
+
 
 // Start Server
 app.listen(PORT, () => {
