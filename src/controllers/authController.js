@@ -4,6 +4,11 @@ import { supabase } from '../config/supabase.js';
 export const registerUser = async (req, res, next) => {
   try {
     const { email, password, name, full_name } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    }
+
     const userFullName = full_name || name;
 
     const { data, error } = await supabase.auth.signUp({
@@ -15,7 +20,7 @@ export const registerUser = async (req, res, next) => {
     });
 
     if (error) {
-      return res.status(450 || 400).json({ success: false, message: error.message });
+      return res.status(error.status || 400).json({ success: false, message: error.message });
     }
 
     return res.status(201).json({
@@ -33,13 +38,24 @@ export const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.status(error.status || 400).json({ success: false, message: error.message });
+    }
+
+    if (!data?.session) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Login failed. Please verify your email before logging in.' 
+      });
     }
 
     return res.status(200).json({
@@ -58,10 +74,14 @@ export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required.' });
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(email);
 
     if (error) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.status(error.status || 400).json({ success: false, message: error.message });
     }
 
     return res.status(200).json({
@@ -78,6 +98,10 @@ export const verifyOtp = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
 
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP code are required.' });
+    }
+
     // Verify OTP code with Supabase Auth recovery type
     const { data, error } = await supabase.auth.verifyOtp({
       email,
@@ -85,14 +109,16 @@ export const verifyOtp = async (req, res, next) => {
       type: 'recovery',
     });
 
-    if (error || !data) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
+    if (error || !data?.session) {
+      return res.status(400).json({ 
+        success: false, 
+        message: error?.message || 'Invalid or expired OTP code.' 
+      });
     }
 
     return res.status(200).json({ 
       success: true, 
       message: 'OTP verified successfully.',
-      // Pass back the temporary session token so the reset-password step can use it securely
       token: data.session.access_token 
     });
   } catch (err) {
@@ -103,23 +129,34 @@ export const verifyOtp = async (req, res, next) => {
 // 5. Step 3: Reset Password using the token/session from verification
 export const resetPassword = async (req, res, next) => {
   try {
-    // Expects the Bearer token from the verifyOtp step, or email/newPassword depending on design
     const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: 'New password is required.' });
+    }
     
-    // If using the session token passed in headers from verify-otp:
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, message: 'Unauthorized. Please verify OTP first.' });
     }
     const token = authHeader.split(' ')[1];
 
-    // Set session or update user directly using the recovery token
+    // Bind the bearer token to the active Supabase auth session
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: '',
+    });
+
+    if (sessionError) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired reset session.' });
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
 
     if (updateError) {
-      return res.status(400).json({ success: false, message: updateError.message });
+      return res.status(updateError.status || 400).json({ success: false, message: updateError.message });
     }
 
     return res.status(200).json({
