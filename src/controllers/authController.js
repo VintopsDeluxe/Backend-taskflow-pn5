@@ -19,8 +19,17 @@ export const registerUser = async (req, res, next) => {
       },
     });
 
+    // Handle Supabase auth errors (weak password, invalid email format, etc.)
     if (error) {
       return res.status(error.status || 400).json({ success: false, message: error.message });
+    }
+
+    // Handle duplicate email detection when Supabase email confirmation/enumeration protection is enabled
+    if (data?.user && data.user.identities && data.user.identities.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email address already exists.',
+      });
     }
 
     return res.status(201).json({
@@ -141,7 +150,7 @@ export const resetPassword = async (req, res, next) => {
     }
     const token = authHeader.split(' ')[1];
 
-    // Bind the bearer token to the active Supabase auth session
+    // Hydrate the recovery session token into Supabase before updating the user password
     const { error: sessionError } = await supabase.auth.setSession({
       access_token: token,
       refresh_token: '',
