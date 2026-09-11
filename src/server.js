@@ -13,10 +13,12 @@ import commentRoutes from './routes/commentRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
+import setupSwagger from './config/swagger.js';
 
 dotenv.config();
 
 const app = express();
+setupSwagger(app);
 const PORT = process.env.PORT || 5000;
 
 // Middleware
