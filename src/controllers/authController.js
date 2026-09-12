@@ -1,7 +1,7 @@
 import { supabase } from '../config/supabase.js';
 
 // 1. Register User via Supabase Auth
-export const registerUser = async (req, res, next) => {
+export const registerUser = async (req, res) => {
   try {
     const { email, password, name, full_name } = req.body;
 
@@ -9,7 +9,7 @@ export const registerUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
 
-    const userFullName = full_name || name;
+    const userFullName = full_name || name || '';
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -21,10 +21,11 @@ export const registerUser = async (req, res, next) => {
 
     // Handle Supabase auth errors (weak password, invalid email format, etc.)
     if (error) {
+      console.error('Supabase SignUp Error:', error);
       return res.status(error.status || 400).json({ success: false, message: error.message });
     }
 
-    // Handle duplicate email detection when Supabase email confirmation/enumeration protection is enabled
+    // Handle duplicate email detection when email confirmation/enumeration protection is enabled
     if (data?.user && data.user.identities && data.user.identities.length === 0) {
       return res.status(400).json({
         success: false,
@@ -38,12 +39,16 @@ export const registerUser = async (req, res, next) => {
       user: data.user,
     });
   } catch (err) {
-    next(err);
+    console.error('Registration Catch Block Exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'An unexpected internal server error occurred.',
+    });
   }
 };
 
 // 2. Login User via Supabase Auth
-export const loginUser = async (req, res, next) => {
+export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -57,6 +62,7 @@ export const loginUser = async (req, res, next) => {
     });
 
     if (error) {
+      console.error('Supabase Login Error:', error);
       return res.status(error.status || 400).json({ success: false, message: error.message });
     }
 
@@ -74,12 +80,16 @@ export const loginUser = async (req, res, next) => {
       user: data.user,
     });
   } catch (err) {
-    next(err);
+    console.error('Login Catch Block Exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'An unexpected internal server error occurred.',
+    });
   }
 };
 
 // 3. Step 1: Request 6-Digit Password Reset OTP
-export const forgotPassword = async (req, res, next) => {
+export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -90,6 +100,7 @@ export const forgotPassword = async (req, res, next) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email);
 
     if (error) {
+      console.error('Supabase Forgot Password Error:', error);
       return res.status(error.status || 400).json({ success: false, message: error.message });
     }
 
@@ -98,12 +109,16 @@ export const forgotPassword = async (req, res, next) => {
       message: 'A 6-digit OTP code has been sent to your email address.',
     });
   } catch (err) {
-    next(err);
+    console.error('Forgot Password Catch Block Exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'An unexpected internal server error occurred.',
+    });
   }
 };
 
 // 4. Step 2: Verify 6-Digit OTP Standalone
-export const verifyOtp = async (req, res, next) => {
+export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
@@ -111,7 +126,6 @@ export const verifyOtp = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Email and OTP code are required.' });
     }
 
-    // Verify OTP code with Supabase Auth recovery type
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token: otp,
@@ -119,6 +133,7 @@ export const verifyOtp = async (req, res, next) => {
     });
 
     if (error || !data?.session) {
+      console.error('Supabase OTP Verification Error:', error);
       return res.status(400).json({ 
         success: false, 
         message: error?.message || 'Invalid or expired OTP code.' 
@@ -131,12 +146,16 @@ export const verifyOtp = async (req, res, next) => {
       token: data.session.access_token 
     });
   } catch (err) {
-    next(err);
+    console.error('Verify OTP Catch Block Exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'An unexpected internal server error occurred.',
+    });
   }
 };
 
 // 5. Step 3: Reset Password using the token/session from verification
-export const resetPassword = async (req, res, next) => {
+export const resetPassword = async (req, res) => {
   try {
     const { newPassword } = req.body;
 
@@ -150,13 +169,13 @@ export const resetPassword = async (req, res, next) => {
     }
     const token = authHeader.split(' ')[1];
 
-    // Hydrate the recovery session token into Supabase before updating the user password
     const { error: sessionError } = await supabase.auth.setSession({
       access_token: token,
       refresh_token: '',
     });
 
     if (sessionError) {
+      console.error('Supabase Set Session Error:', sessionError);
       return res.status(401).json({ success: false, message: 'Invalid or expired reset session.' });
     }
 
@@ -165,6 +184,7 @@ export const resetPassword = async (req, res, next) => {
     });
 
     if (updateError) {
+      console.error('Supabase Update User Error:', updateError);
       return res.status(updateError.status || 400).json({ success: false, message: updateError.message });
     }
 
@@ -173,6 +193,10 @@ export const resetPassword = async (req, res, next) => {
       message: 'Password updated successfully. You can now log in.',
     });
   } catch (err) {
-    next(err);
+    console.error('Reset Password Catch Block Exception:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'An unexpected internal server error occurred.',
+    });
   }
 };
