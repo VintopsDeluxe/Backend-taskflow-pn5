@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+// Middleware & Utilities
+import { globalLimiter, authLimiter } from './middleware/rateLimiter.js';
+import setupSwagger from './config/swagger.js';
+
 // Import Routes
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -13,40 +17,51 @@ import commentRoutes from './routes/commentRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
-import setupSwagger from './config/swagger.js';
 
 dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// Enable reverse proxy trust for Render deployment
+// 1. Enable reverse proxy trust for Render deployment
 app.set('trust proxy', 1);
 
 setupSwagger(app);
-const PORT = process.env.PORT || 5000;
 
-// Parse comma-separated CLIENT_URL string into an array of allowed origins
+// 2. Parse CLIENT_URL into an array and strip trailing slashes
 const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map((url) => url.trim())
+  ? process.env.CLIENT_URL.split(',').map((url) => url.trim().replace(/\/$/, ''))
   : ['http://localhost:3000', 'http://localhost:5173'];
 
-// Dynamic CORS Configuration
+// 3. CORS Middleware (placed BEFORE rate limiters and express.json)
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like Postman or server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin) return callback(null, true);
+
+      const sanitizedOrigin = origin.replace(/\/$/, '');
+      if (allowedOrigins.includes(sanitizedOrigin)) {
         return callback(null, true);
       }
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
+
+      // Return false instead of an Error object so preflight OPTIONS requests fail cleanly without a 500 server crash
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200,
   })
 );
 
-// Middleware
+// 4. Rate Limiters (placed AFTER CORS so preflights aren't rejected by rate limits)
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/forgot-password', authLimiter);
+app.use('/api/v1/auth/verify-otp', authLimiter);
+app.use('/api', globalLimiter);
+
+// 5. Body Parsing Middleware
 app.use(express.json());
 
 // ==========================================
@@ -59,10 +74,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Mounted Auth Routes
 app.use('/api/v1/auth', authRoutes);
-
-// Other Application Routes
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/workspaces', workspaceRoutes);
 app.use('/api/v1/workspaces', workspaceMemberRoutes);
@@ -77,7 +89,6 @@ app.use('/api/v1/activity-logs', activityRoutes);
 // ==========================================
 // GLOBAL ERROR HANDLING & 404
 // ==========================================
-// Unmatched routes handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -85,7 +96,6 @@ app.use((req, res) => {
   });
 });
 
-// Global Error Middleware
 app.use((err, req, res, next) => {
   console.error('Global Error:', err.stack);
   res.status(err.status || 500).json({
