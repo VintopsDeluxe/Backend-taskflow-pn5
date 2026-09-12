@@ -3,7 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 
 // Middleware & Utilities
-import { globalLimiter, authLimiter } from './middlewares/rateLimiters.js';
+// Temporarily disabled until rateLimiter casing is verified on GitHub:
+// import { globalLimiter, authLimiter } from './middleware/rateLimiter.js';
 import setupSwagger from './config/swagger.js';
 
 // Import Routes
@@ -33,11 +34,10 @@ const allowedOrigins = process.env.CLIENT_URL
   ? process.env.CLIENT_URL.split(',').map((url) => url.trim().replace(/\/$/, ''))
   : ['http://localhost:3000', 'http://localhost:5173'];
 
-// 3. CORS Middleware (placed BEFORE rate limiters and express.json)
+// 3. CORS Middleware
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like Postman or server-to-server)
       if (!origin) return callback(null, true);
 
       const sanitizedOrigin = origin.replace(/\/$/, '');
@@ -45,7 +45,6 @@ app.use(
         return callback(null, true);
       }
 
-      // Return false instead of an Error object so preflight OPTIONS requests fail cleanly without a 500 server crash
       return callback(null, false);
     },
     credentials: true,
@@ -55,11 +54,11 @@ app.use(
   })
 );
 
-// 4. Rate Limiters (placed AFTER CORS so preflights aren't rejected by rate limits)
-app.use('/api/v1/auth/login', authLimiter);
-app.use('/api/v1/auth/forgot-password', authLimiter);
-app.use('/api/v1/auth/verify-otp', authLimiter);
-app.use('/api', globalLimiter);
+// 4. Rate Limiters (Disabled temporarily for clean deployment)
+// app.use('/api/v1/auth/login', authLimiter);
+// app.use('/api/v1/auth/forgot-password', authLimiter);
+// app.use('/api/v1/auth/verify-otp', authLimiter);
+// app.use('/api', globalLimiter);
 
 // 5. Body Parsing Middleware
 app.use(express.json());
@@ -106,5 +105,5 @@ app.use((err, req, res, next) => {
 
 // Start Server
 app.listen(PORT, () => {
-  console.log(`TaskFlow Backend API running on http://localhost:${PORT}`);
+  console.log(`TaskFlow Backend API running on port ${PORT}`);
 });
