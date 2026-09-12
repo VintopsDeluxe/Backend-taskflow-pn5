@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 
 // Middleware & Utilities
-import { globalLimiter, authLimiter } from './middleware/rateLimiter.js';
+import { globalLimiter, authLimiter } from './middlewares/rateLimiters.js';
 import setupSwagger from './config/swagger.js';
 
 // Import Routes

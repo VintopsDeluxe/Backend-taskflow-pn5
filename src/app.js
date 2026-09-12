@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { globalLimiter, authLimiter } from './middleware/rateLimiter.js';
+import { globalLimiter, authLimiter } from './middlewares/rateLimiter.js';
 
 const app = express();
 
