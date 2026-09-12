@@ -8,23 +8,32 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables in .env!');
+  throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment variables!');
 }
 
-// 1. Client for standard user-authenticated requests (respects RLS)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 1. Standard client for public/anon requests (respects RLS)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: { persistSession: false },
+});
 
-// 2. Admin client bypassing RLS (for system tasks/maintenance)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
+// 2. Admin client bypassing RLS (strictly requires service_role key)
+export const supabaseAdmin = supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null;
 
-// 3. Dynamic client factory that forwards the logged-in user's Bearer token to enforce RLS
+// 3. Dynamic client factory forwarding the user's JWT to enforce RLS
 export const getSupabaseClient = (req) => {
   const authHeader = req?.headers?.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
 
+  if (!token) return supabase; // Fallback to standard anon client
+
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: { Authorization: `Bearer ${token}` },
     },
+    auth: { persistSession: false }, // Critical for per-request clients in Node.js
   });
 };
