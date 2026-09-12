@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 
 // Import Routes
-import authRoutes from './routes/authRoutes.js'; // 1. Added authRoutes import
+import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import workspaceRoutes from './routes/workspaceRoutes.js';
 import workspaceMemberRoutes from './routes/workspaceMemberRoutes.js';
@@ -18,18 +18,39 @@ import setupSwagger from './config/swagger.js';
 dotenv.config();
 
 const app = express();
+
+// Enable reverse proxy trust for Render deployment
+app.set('trust proxy', 1);
+
 setupSwagger(app);
 const PORT = process.env.PORT || 5000;
 
+// Parse comma-separated CLIENT_URL string into an array of allowed origins
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map((url) => url.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+// Dynamic CORS Configuration
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like Postman or server-to-server)
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
 // Middleware
 app.use(express.json());
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
-}));
 
 // ==========================================
-// 5. APPLICATION ROUTES
+// APPLICATION ROUTES
 // ==========================================
 app.get('/', (req, res) => {
   res.status(200).json({
@@ -39,12 +60,12 @@ app.get('/', (req, res) => {
 });
 
 // Mounted Auth Routes
-app.use('/api/v1/auth', authRoutes); // 2. Mounted under /api/v1/auth
+app.use('/api/v1/auth', authRoutes);
 
 // Other Application Routes
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/workspaces', workspaceRoutes);
-app.use('/api/v1/workspaces', workspaceMemberRoutes);;
+app.use('/api/v1/workspaces', workspaceMemberRoutes);
 app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/comments', commentRoutes);
@@ -54,7 +75,7 @@ app.use('/api/v1/activity', activityRoutes);
 app.use('/api/v1/activity-logs', activityRoutes);
 
 // ==========================================
-// 6. GLOBAL ERROR HANDLING & 404
+// GLOBAL ERROR HANDLING & 404
 // ==========================================
 // Unmatched routes handler
 app.use((req, res) => {
@@ -72,7 +93,6 @@ app.use((err, req, res, next) => {
     message: err.message || 'Internal Server Error'
   });
 });
-
 
 // Start Server
 app.listen(PORT, () => {
